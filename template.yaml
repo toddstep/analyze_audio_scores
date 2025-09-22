@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+# https://medium.com/@kategera6/aws-sam-managing-environment-variables-in-dev-and-prod-environments-6a16c76480f2
+Parameters:
+  ScoresTable:
+    Type: String
+    Description: ARN for DynamoDB Table
+  CloudFrontAlias:
+    Type: String
+    Description: Alias for distribution
+  AliasCertificate:
+    Type: String
+    Description: Certificate ARN for distribution
+
+Resources:
+  ChartFunction:
+    Type: AWS::Serverless::Function
+    # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/managing-permissions-connectors.html
+    Connectors:
+      ScoresTableConn:
+        Properties:
+          Destination:
+            Arn: !Ref ScoresTable
+            Type: AWS::DynamoDB::Table
+          Permissions:
+            - Read
+    Properties:
+      Runtime: nodejs22.x
+      Handler: index.handler
+      MemorySize: 1024
+      Timeout: 300
+      PackageType: Zip
+      CodeUri: src/
+      # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-functionurlconfig.html
+      FunctionUrlConfig:
+        AuthType: NONE
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ScoresTable
+  ChartFront:
+    # https://aws.amazon.com/blogs/networking-and-content-delivery/using-amazon-cloudfront-with-aws-lambda-as-origin-to-accelerate-your-web-applications/
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        PriceClass: PriceClass_100
+        Aliases:
+          - !Ref CloudFrontAlias
+        ViewerCertificate:
+          AcmCertificateArn: !Ref AliasCertificate
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
+        Origins:
+          # https://rahullokurte.com/a-guide-to-using-aws-intrinsic-functions-in-your-sam-templates
+          - DomainName: !Select [2, !Split ["/", !GetAtt ChartFunctionUrl.FunctionUrl]]
+            Id: ChartOrigin
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginReadTimeout: 60
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+          TargetOriginId: ChartOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          # https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+        Enabled: true
+
+Outputs:
+  ChartFunction:
+    Description: "Chart Lambda Function ARN"
+    Value: !GetAtt ChartFunction.Arn
+  ChartFunctionIamRole:
+    Description: "IAM Role created for Chart function"
+    Value: !GetAtt ChartFunctionRole.Arn
+  ChartFunctionUrl:
+    Description: "URL for Chart function"
+    Value: !GetAtt ChartFunctionUrl.FunctionUrl
+  ChartFrontUrl:
+    Description: "Chart CloudFront domain"
+    Value: !GetAtt ChartFront.DomainName

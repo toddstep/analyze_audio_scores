@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+        body {
+            font-size: x-large;
+        }
+        input {
+            font-size: large;
+        }
+    </style>
+    <title>Top Scoring Birds</title>
+  </head>
+  <!-- https://www.chartjs.org/docs/latest/getting-started/ -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!--- https://github.com/chartjs/chartjs-adapter-date-fns#cdn -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <body>
+    <h2>Select analysis window (use UTC timezone)</h2>
+    <form action="/", method="GET">
+      <div>
+        <label for="from_date">From:</label>
+        <input type="date" name="from_date" id="from_date" value="{FROM_DATE}" required />
+        <input type="time" name="from_time" id="from_time" value="{FROM_TIME}" required />
+      </div>
+      <div>
+        <label for="to_date">To:</label>
+        <input type="date" name="to_date" id="to_date" value="{TO_DATE}" required />
+        <input type="time" name="to_time" id="to_time" value="{TO_TIME}" required />
+      </div>
+      <div>
+        <input type="submit" value="submit">
+      </div>
+    </form>
+    {RESULTS_HEADER}
+    <div>
+      <canvas id="scores"></canvas>
+    </div>
+    <script>
+      const chart_ctx = document.getElementById("scores")
+      Chart.defaults.font.size = 14;
+      new Chart(chart_ctx, {
+        type: 'line',
+        data: {
+          labels: {labels},
+          datasets: {datasets}
+        },
+        options: {
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                unit: 'minute'
+              }
+            },
+            y: {
+              beginAtZero: true,
+              max: 1
+            }
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
