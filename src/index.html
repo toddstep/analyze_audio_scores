@@ -16,18 +16,39 @@
   <!--- https://github.com/chartjs/chartjs-adapter-date-fns#cdn -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
   <body>
-    <h2>Select analysis window (use UTC timezone)</h2>
+    View graphs for the top scoring birds.
+    For the selected time window and threshold value, this analytic:
+    <ol>
+      <li>removes all species whose scores are always below the given <b>threshold</b></li>
+      <li>sorts the species according to their maximum scores</li>
+      <li>retains the top <b>N</b> species</li>
+    </ol>
+    If no scores meet the threshold, then an empty graph will be displayed.
     <form action="/", method="GET">
+      <br><b>Analysis window:</b>
       <div>
         <label for="from_date">From:</label>
         <input type="date" name="from_date" id="from_date" value="{FROM_DATE}" required />
         <input type="time" name="from_time" id="from_time" value="{FROM_TIME}" required />
+        <label for="from_tz">&nbspUTC offset:</label>
+        <input type="number" name="from_tz" id="from_tz" value="{FROM_TZ}" min="-24" max="24" required />
       </div>
       <div>
-        <label for="to_date">To:</label>
+        <label for="to_date">To:&nbsp&nbsp&nbsp</label>
         <input type="date" name="to_date" id="to_date" value="{TO_DATE}" required />
         <input type="time" name="to_time" id="to_time" value="{TO_TIME}" required />
+        <label for="from_tz">&nbspUTC offset:</label>
+        <input type="number" name="to_tz" id="to_tz" value="{TO_TZ}" min="-24" max="24" required />
       </div>
+      <div>
+        <label for="threshold"><br><b>Threshold</b>:</label>
+        <input type="number" name="threshold" id="threshold" value="{THRESHOLD}"  min="0" max="1" step=".01" required />
+      </div>
+      <div>
+        <label for="num_top_species"><br><b>N</b>:</label>
+        <input type="number" name="num_top_species" id="num_top_species" value="{NUM_TOP_SPECIES}" min="1" max="{NUM_SPECIES}" required />
+      </div>
+      <br>
       <div>
         <input type="submit" value="submit">
       </div>

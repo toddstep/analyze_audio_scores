@@ -22,5 +22,7 @@ sam deploy --guided
 ## Usage:
 * Enter your domain name in the browser.
 * Select the start and stop times for the analysis window.
+* Choose the desired threshold. Species whose maximum value is below this threshold will be excluded from the graph.
+* Choose `N`. At most this many species will be plotted.
 * Click on Submit to request the graphs for the most likely birds.
     * If a Throughput error is returned, either select a shorter window or wait a few minutes before resubmitting the request.

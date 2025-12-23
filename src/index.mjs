@@ -13,12 +13,13 @@ const dynamoClient = new DynamoDBClient({
     },
 });
 const num_top_species = 5;
+const num_species = all_species.length;
 
 async function execute_query(command) {
     return await dynamoClient.send(new QueryCommand(command));
 }
 
-function default_date_time() {
+function default_html_info() {
     // https://www.geeksforgeeks.org/how-to-calculate-the-yesterdays-date-in-javascript/
     const millisecondsInDay = 1000*60*60*24;
     const today = new Date();
@@ -28,20 +29,35 @@ function default_date_time() {
     return {
         'from_date': from_date,
         'from_time': from_time.split(":").slice(0, 2).join(":"),
+        'from_tz': "0",
         'to_date': to_date,
         'to_time': to_time.split(":").slice(0, 2).join(":"),
+        'to_tz': "0",
+        'threshold': "0.2",
+        'num_top_species': "5",
     };
 }
 
-function set_html_date_time(params, html) {
+function set_html_info(params, html) {
     return html.replace("{FROM_DATE}", params.from_date)
                .replace("{FROM_TIME}", params.from_time)
+               .replace("{FROM_TZ}", params.from_tz)
                .replace("{TO_DATE}", params.to_date)
-               .replace("{TO_TIME}",  params.to_time);
+               .replace("{TO_TIME}",  params.to_time)
+               .replace("{TO_TZ}", params.to_tz)
+               .replace("{THRESHOLD}", params.threshold)
+               .replace("{NUM_TOP_SPECIES}", params.num_top_species)
+               .replace("{NUM_SPECIES}", num_species);
 }
 
-function convert_to_epoch(date, time) {
-    return Date.parse(date + "T" + time + "Z") / 1000;
+function convert_to_epoch(date, time, tz) {
+    if (tz < 0) {
+        tz = "-" + Math.abs(tz).toString().padStart(2, "0")
+    } else {
+        tz = "+" + tz.padStart(2, "0")
+    }
+    const datetime_tz = date + "T" + time + tz + ":00"
+    return  Date.parse(datetime_tz) / 1000;
 }
 
 function max_scores(x) {
@@ -81,8 +97,11 @@ async function get_species(sp, from_time, to_time) {
 }
 
 function chart_species(single_select_species, all_species_items) {
-    const label = "label: '" + all_species[single_select_species[0]] + "'";
-    const data = "data: [" + all_species_items[single_select_species[0]].map((x)=>x.score.N) + "]";
+    const species_idx = single_select_species[0]
+    const species = all_species[species_idx].replaceAll("'", "\\'")
+    const scores = all_species_items[species_idx].map((x)=>x.score.N)
+    const label = "label: '" + species + "'";
+    const data = "data: [" + scores + "]";
     return "{" + label + "," +  data + "}";
 }
 
@@ -91,29 +110,29 @@ export const handler = async (event) => {
     const params = event.queryStringParameters;
     let updateHtml = html;
     if (params == null) {
-        const default_params = default_date_time();
+        const default_params = default_html_info();
         console.log('NO PARAMS', default_params);
-        updateHtml = set_html_date_time(default_params, updateHtml)
+        updateHtml = set_html_info(default_params, updateHtml)
                         .replace("{RESULTS_HEADER}", "");
     }
     else {
         console.log('PARAMS', params);
-        const from_epoch = convert_to_epoch(params.from_date, params.from_time);
-        const to_epoch = convert_to_epoch(params.to_date, params.to_time);
-        const threshold = params.threshold;
+        const from_epoch = convert_to_epoch(params.from_date, params.from_time, params.from_tz);
+        const to_epoch = convert_to_epoch(params.to_date, params.to_time, params.to_tz);
         try {
             const all_species_items = await Promise.all(all_species.map((species) => get_species(species, from_epoch, to_epoch)));
             const timestamps = "[" + all_species_items[0].map((x) => x.time.N*1000 ) + "]";
             const select_species = all_species_items.map((x, idx) => [idx, max_scores(x)])
+                                                    .filter((x) => x[1] >= params.threshold)
                                                     .sort((a, b) => b[1] - a[1])
-                                                    .slice(0, num_top_species);
+                                                    .slice(0, params.num_top_species);
             const chart_datasets = select_species.map((x)=> chart_species(x, all_species_items)).join(",");
-            updateHtml = set_html_date_time(params, updateHtml)
+            updateHtml = set_html_info(params, updateHtml)
                             .replace("{RESULTS_HEADER}", "<h2>Top scoring birds for window (using browser's time zone)</h2>")
                             .replace("{labels}", timestamps)
                             .replace("{datasets}", "[" + chart_datasets + "]");
         } catch (err) {
-            updateHtml = set_html_date_time(params, updateHtml)
+            updateHtml = set_html_info(params, updateHtml)
                              .replace("{RESULTS_HEADER}", err)
         }
     }
