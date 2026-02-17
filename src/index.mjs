@@ -3,9 +3,11 @@ import {GetItemCommand, QueryCommand, DynamoDBClient} from '@aws-sdk/client-dyna
 
 const html = fs.readFileSync('index.html', { encoding: 'utf8' });
 // https://www.geeksforgeeks.org/node-js/how-to-return-an-array-of-lines-from-a-file-in-node-js/
-const all_species = fs.readFileSync('all_species.txt', { encoding: 'utf8' })
-                      .split('\n')
-                      .map((x)=>x.split(',')[1]);
+const all_speciesCodeNCommonNames = fs.readFileSync('all_species.txt', { encoding: 'utf8' })
+                                      .split('\n')
+                                      .map((x)=>x.split(','));
+const all_species = all_speciesCodeNCommonNames.map((x)=>x[0])
+const all_species_common_names = all_speciesCodeNCommonNames.map((x)=>x[1])
 // https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/node-configuring-maxsockets.html
 const dynamoClient = new DynamoDBClient({
     requestHandler: {
@@ -96,13 +98,18 @@ async function get_species(sp, from_time, to_time) {
     return all_items;
 }
 
+// https://stackoverflow.com/questions/38101859/chart-js-line-chart-with-different-labels-for-each-dataset
+function data_element(x) {
+    return " {x: " + x.time.N*1000 + ", y: " + x.score.N + "}";
+}
+
 function chart_species(single_select_species, all_species_items) {
     const species_idx = single_select_species[0]
-    const species = all_species[species_idx].replaceAll("'", "\\'")
-    const scores = all_species_items[species_idx].map((x)=>x.score.N)
+    const species = all_species_common_names[species_idx].replaceAll("'", "\\'")
+    const time_scores = all_species_items[species_idx].map((x)=>data_element(x))
     const label = "label: '" + species + "'";
-    const data = "data: [" + scores + "]";
-    return "{" + label + "," +  data + "}";
+    const data = "data: [" + time_scores + "]";
+    return "\n    {" + label + ", " +  data + "}";
 }
 
 export const handler = async (event) => {
@@ -121,7 +128,7 @@ export const handler = async (event) => {
         const to_epoch = convert_to_epoch(params.to_date, params.to_time, params.to_tz);
         try {
             const all_species_items = await Promise.all(all_species.map((species) => get_species(species, from_epoch, to_epoch)));
-            const timestamps = "[" + all_species_items[0].map((x) => x.time.N*1000 ) + "]";
+            // const timestamps = "[" + all_species_items[0].map((x) => x.time.N*1000 ) + "]";
             const select_species = all_species_items.map((x, idx) => [idx, max_scores(x)])
                                                     .filter((x) => x[1] >= params.threshold)
                                                     .sort((a, b) => b[1] - a[1])
@@ -129,8 +136,8 @@ export const handler = async (event) => {
             const chart_datasets = select_species.map((x)=> chart_species(x, all_species_items)).join(",");
             updateHtml = set_html_info(params, updateHtml)
                             .replace("{RESULTS_HEADER}", "<h2>Top scoring birds for window (using browser's time zone)</h2>")
-                            .replace("{labels}", timestamps)
-                            .replace("{datasets}", "[" + chart_datasets + "]");
+                            // .replace("{labels}", timestamps)
+                            .replace("{datasets}", "\n[" + chart_datasets + "\n]");
         } catch (err) {
             updateHtml = set_html_info(params, updateHtml)
                              .replace("{RESULTS_HEADER}", err)
